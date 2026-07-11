@@ -2,10 +2,10 @@ import { createClient, type Client } from "@libsql/client";
 import crypto from "crypto";
 
 // ─── JSON Data (bundled at build time) ─────────────────────
-import categoriesData from "@/data/categories.json";
-import itemsData from "@/data/items.json";
-import topItemsData from "@/data/top_items.json";
-import productsData from "@/data/products.json";
+import categoriesData from "../../data/categories.json";
+import itemsData from "../../data/items.json";
+import topItemsData from "../../data/top_items.json";
+import productsData from "../../data/products.json";
 
 function isTurso(): boolean {
   return !!(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
