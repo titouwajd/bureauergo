@@ -1,8 +1,21 @@
 import { createClient, type Client } from "@libsql/client";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 
-const DB_PATH = path.join(process.cwd(), "..", "data", "nichesite.db");
+// Chemins possibles pour la DB locale (essayés dans l'ordre)
+const DB_PATHS = [
+  path.join(process.cwd(), "data", "nichesite.db"),        // Vercel / production
+  path.join(process.cwd(), "..", "data", "nichesite.db"),   // dev local depuis web/
+];
+
+function findLocalDb(): string {
+  for (const p of DB_PATHS) {
+    if (fs.existsSync(p)) return p;
+  }
+  // Fallback : le premier chemin (Vercel)
+  return DB_PATHS[0];
+}
 
 // ─── Client ──────────────────────────────────────────────────
 
@@ -17,8 +30,8 @@ function getClient(): Client {
       // Production : Turso (compatible Vercel serverless)
       client = createClient({ url: tursoUrl, authToken: tursoToken });
     } else {
-      // Développement local : fichier SQLite
-      client = createClient({ url: `file:${DB_PATH}` });
+      // Local : fichier SQLite
+      client = createClient({ url: `file:${findLocalDb()}` });
     }
   }
   return client;

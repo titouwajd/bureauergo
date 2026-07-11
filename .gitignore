@@ -8,3 +8,5 @@ data/*.db
 public/images/*.webp
 .DS_Store
 *.log
+!web/data/nichesite.db
+!web/data/nichesite.db
