@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { Metadata } from "next";
 import { getCategoryBySlug, getItems, getCategories } from "@/lib/db";
 import { SITE_URL } from "@/lib/constants";
@@ -125,14 +126,16 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar filters */}
         <aside className="lg:w-64 shrink-0">
-          <FilterSidebar
-            categories={allCategories}
-            currentCategory={slug}
-            currentSort={sort}
-            currentMinPrice={minPrice}
-            currentMaxPrice={maxPrice}
-            currentMinRating={minRating}
-          />
+          <Suspense fallback={<div className="animate-pulse bg-gray-100 rounded-lg h-96" />}>
+            <FilterSidebar
+              categories={allCategories}
+              currentCategory={slug}
+              currentSort={sort}
+              currentMinPrice={minPrice}
+              currentMaxPrice={maxPrice}
+              currentMinRating={minRating}
+            />
+          </Suspense>
         </aside>
 
         {/* Items grid */}
