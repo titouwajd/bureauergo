@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
-  serverExternalPackages: ["@libsql/client"],
+  serverExternalPackages: ["better-sqlite3", "@libsql/client"],
   async redirects() {
     return [
       { source: "/category/:slug", destination: "/categorie/:slug", permanent: true },
