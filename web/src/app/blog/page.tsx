@@ -57,6 +57,46 @@ export default function BlogPage() {
       category: "Rangement",
       readTime: "9 min",
     },
+    {
+      title: "Comparatif des meilleurs supports PC portables ergonomiques 2026",
+      excerpt: "Aluminium, bambou ou plastique ? Découvrez notre comparatif complet des supports PC portables pour améliorer votre posture au travail.",
+      date: "2026-07-01",
+      slug: "comparatif-supports-pc-portables-ergonomiques-2026",
+      category: "Accessoires",
+      readTime: "7 min",
+    },
+    {
+      title: "Lampe de bureau LED : comment bien choisir son éclairage ?",
+      excerpt: "Température de couleur, luminosité, filtration lumière bleue : tout ce qu'il faut savoir pour choisir la lampe de bureau idéale.",
+      date: "2026-07-03",
+      slug: "lampe-bureau-led-bien-choisir-eclairage",
+      category: "Éclairage",
+      readTime: "6 min",
+    },
+    {
+      title: "Télétravail : 7 erreurs qui ruinent votre dos (et comment les corriger)",
+      excerpt: "Mauvaises postures, écran trop bas, chaise inadaptée : identifiez et corrigez les 7 erreurs qui abîment votre dos en télétravail.",
+      date: "2026-07-05",
+      slug: "teletravail-erreurs-dos-corriger",
+      category: "Bien-être",
+      readTime: "8 min",
+    },
+    {
+      title: "Hub USB-C ou docking station : lequel choisir pour son bureau ?",
+      excerpt: "Hub nomade ou station d'accueil complète ? Comparatif, besoins en connectique et recommandations pour ne pas se tromper.",
+      date: "2026-07-07",
+      slug: "hub-usb-c-vs-docking-station-bureau",
+      category: "High-tech",
+      readTime: "6 min",
+    },
+    {
+      title: "Guide : créer un espace de travail ergonomique pour moins de 200€",
+      excerpt: "Support PC, clavier, lampe, gestion des câbles : voici comment aménager un bureau ergonomique complet avec un budget maîtrisé.",
+      date: "2026-07-09",
+      slug: "guide-espace-travail-ergonomique-moins-200-euros",
+      category: "Accessoires",
+      readTime: "9 min",
+    },
   ];
 
   return (

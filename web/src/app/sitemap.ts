@@ -5,8 +5,10 @@ import { MetadataRoute } from "next";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const categories = await getCategories();
-  const { items } = await getItems({ pageSize: 50000 });
+  let categories: Awaited<ReturnType<typeof getCategories>> = [];
+  try { categories = await getCategories(); } catch (e) { console.error("DB unavailable for getCategories:", e); }
+  let items: Awaited<ReturnType<typeof getItems>>["items"] = [];
+  try { const r = await getItems({ pageSize: 50000 }); items = r.items; } catch (e) { console.error("DB unavailable for getItems:", e); }
 
   const staticPages = [
     { url: SITE_URL, priority: 1, changeFrequency: "daily" as const },

@@ -7,8 +7,10 @@ import StarRating from "@/components/StarRating";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const topItems = await getTopItems(10);
-  const categories = await getCategories() as Array<{ id: number; name: string; slug: string; description: string | null; item_count: number }>;
+  let topItems: Awaited<ReturnType<typeof getTopItems>> = [];
+  let categories: Array<{ id: number; name: string; slug: string; description: string | null; item_count: number }> = [];
+  try { topItems = await getTopItems(10); } catch (e) { console.error("DB unavailable for getTopItems:", e); }
+  try { categories = await getCategories() as any; } catch (e) { console.error("DB unavailable for getCategories:", e); }
 
   const categoryIcons: Record<string, string> = {
     "accessoires-bureau": "🖥️",

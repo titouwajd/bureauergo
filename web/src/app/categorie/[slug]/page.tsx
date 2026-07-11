@@ -16,7 +16,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const category = await getCategoryBySlug(slug);
+  let category: Awaited<ReturnType<typeof getCategoryBySlug>> = null;
+  try { category = await getCategoryBySlug(slug); } catch (e) { console.error("DB unavailable for getCategoryBySlug:", e); }
   if (!category) {
     return { title: "Catégorie non trouvée" };
   }
@@ -30,7 +31,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = await searchParams;
-  const category = await getCategoryBySlug(slug);
+  let category: Awaited<ReturnType<typeof getCategoryBySlug>> = null;
+  try { category = await getCategoryBySlug(slug); } catch (e) { console.error("DB unavailable for getCategoryBySlug:", e); }
 
   if (!category) {
     return (
@@ -49,19 +51,26 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const minRating = sp.minRating ? Number(sp.minRating) : undefined;
   const query = sp.q;
 
-  const { items, total } = await getItems({
-    category: slug,
-    page,
-    pageSize: 20,
-    sort,
-    minPrice,
-    maxPrice,
-    minRating,
-    query,
-  });
+  let items: Awaited<ReturnType<typeof getItems>>["items"] = [];
+  let total = 0;
+  try {
+    const result = await getItems({
+      category: slug,
+      page,
+      pageSize: 20,
+      sort,
+      minPrice,
+      maxPrice,
+      minRating,
+      query,
+    });
+    items = result.items;
+    total = result.total;
+  } catch (e) { console.error("DB unavailable for getItems:", e); }
 
   const totalPages = Math.ceil(total / 20);
-  const allCategories = await getCategories() as Array<{ id: number; name: string; slug: string; item_count: number }>;
+  let allCategories: Array<{ id: number; name: string; slug: string; item_count: number }> = [];
+  try { allCategories = await getCategories() as any; } catch (e) { console.error("DB unavailable for getCategories:", e); }
 
   // JSON-LD
   const jsonLd = {

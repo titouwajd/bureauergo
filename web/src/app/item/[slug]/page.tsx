@@ -15,7 +15,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const item = await getItemBySlug(slug);
+  let item: Awaited<ReturnType<typeof getItemBySlug>> = null;
+  try { item = await getItemBySlug(slug); } catch (e) { console.error("DB unavailable for getItemBySlug:", e); }
   if (!item) return { title: "Produit non trouvé" };
 
   return {
@@ -32,7 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ItemDetailPage({ params }: Props) {
   const { slug } = await params;
-  const item = await getItemBySlug(slug);
+  let item: Awaited<ReturnType<typeof getItemBySlug>> = null;
+  try { item = await getItemBySlug(slug); } catch (e) { console.error("DB unavailable for getItemBySlug:", e); }
 
   if (!item) {
     return (
@@ -44,7 +46,8 @@ export default async function ItemDetailPage({ params }: Props) {
     );
   }
 
-  const similarItems = await getSimilarItems(item.category_id, item.id, 6);
+  let similarItems: Awaited<ReturnType<typeof getSimilarItems>> = [];
+  try { similarItems = await getSimilarItems(item.category_id, item.id, 6); } catch (e) { console.error("DB unavailable for getSimilarItems:", e); }
 
   // JSON-LD Product schema
   const jsonLd = {
