@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  # ─── Application Next.js ─────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - AFFILIATE_TAG=${AFFILIATE_TAG:-bureauergo-21}
+      - ADSENSE_ENABLED=${ADSENSE_ENABLED:-false}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@bureauergo.fr}
+    volumes:
+      - ./data:/app/data
+      - ./web/public/images:/app/public/images
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ─── Redis (cache) ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ─── Scraper Cron ───────────────────────────────────────
+  scraper-cron:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+      - ./web/public/images:/app/public/images
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    entrypoint: |
+      sh -c '
+      while true; do
+        echo "=== Scraping run: $$(date) ==="
+        python content_scraper.py
+        echo "=== Next run in 6 hours ==="
+        sleep 21600
+      done
+      '
+
+volumes:
+  redis_data:
