@@ -1,13 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },
     ],
   },
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["@libsql/client"],
   async redirects() {
     return [
       { source: "/category/:slug", destination: "/categorie/:slug", permanent: true },
