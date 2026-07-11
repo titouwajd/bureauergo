@@ -1,65 +1,112 @@
 import { createClient, type Client } from "@libsql/client";
+import initSqlJs, { type Database as SqlJsDb } from "sql.js";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
-// Chemins possibles pour la DB locale (essayés dans l'ordre)
-const DB_PATHS = [
-  path.join(process.cwd(), "data", "nichesite.db"),        // Vercel / production
-  path.join(process.cwd(), "..", "data", "nichesite.db"),   // dev local depuis web/
-];
-
-function findLocalDb(): string {
-  for (const p of DB_PATHS) {
-    if (fs.existsSync(p)) return p;
-  }
-  // Fallback : le premier chemin (Vercel)
-  return DB_PATHS[0];
-}
-
 // ─── Client ──────────────────────────────────────────────────
 
-let client: Client | null = null;
+let tursoClient: Client | null = null;
+let sqlJsDb: SqlJsDb | null = null;
+let sqlJsReady = false;
 
-function getClient(): Client {
-  if (!client) {
-    const tursoUrl = process.env.TURSO_DATABASE_URL;
-    const tursoToken = process.env.TURSO_AUTH_TOKEN;
-
-    if (tursoUrl && tursoToken) {
-      // Production : Turso (compatible Vercel serverless)
-      client = createClient({ url: tursoUrl, authToken: tursoToken });
-    } else {
-      // Local : fichier SQLite
-      client = createClient({ url: `file:${findLocalDb()}` });
-    }
+async function getSqlJs(): Promise<SqlJsDb> {
+  if (sqlJsDb) return sqlJsDb;
+  const SQL = await initSqlJs();
+  // Essayer plusieurs chemins pour la DB locale
+  const dbPaths = [
+    path.join(process.cwd(), "data", "nichesite.db"),
+    path.join(process.cwd(), "..", "data", "nichesite.db"),
+  ];
+  let buffer: Buffer | null = null;
+  for (const p of dbPaths) {
+    if (fs.existsSync(p)) { buffer = fs.readFileSync(p); break; }
   }
-  return client;
+  if (!buffer) throw new Error("Database file not found");
+  sqlJsDb = new SQL.Database(buffer);
+  sqlJsReady = true;
+  return sqlJsDb;
+}
+
+function getTursoClient(): Client {
+  if (!tursoClient) {
+    const url = process.env.TURSO_DATABASE_URL!;
+    const token = process.env.TURSO_AUTH_TOKEN!;
+    tursoClient = createClient({ url, authToken: token });
+  }
+  return tursoClient;
+}
+
+function isTurso(): boolean {
+  return !!(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-async function query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
-  const db = getClient();
-  const result = await db.execute({ sql, args: params as any[] });
+// Turso helpers (async, remote)
+async function tursoQuery<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const result = await getTursoClient().execute({ sql, args: params as any[] });
   return result.rows.map((row) => {
     const obj: Record<string, unknown> = {};
-    for (let i = 0; i < result.columns.length; i++) {
-      obj[result.columns[i]] = row[i];
-    }
+    for (let i = 0; i < result.columns.length; i++) obj[result.columns[i]] = row[i];
     return obj as T;
   });
 }
 
-async function queryOne<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T | null> {
-  const rows = await query<T>(sql, params);
+async function tursoQueryOne<T>(sql: string, params: unknown[] = []): Promise<T | null> {
+  const rows = await tursoQuery<T>(sql, params);
   return rows[0] || null;
 }
 
-async function execute(sql: string, params: unknown[] = []): Promise<number> {
-  const db = getClient();
-  const result = await db.execute({ sql, args: params as any[] });
+async function tursoExec(sql: string, params: unknown[] = []): Promise<number> {
+  const result = await getTursoClient().execute({ sql, args: params as any[] });
   return Number(result.lastInsertRowid || 0);
+}
+
+// sql.js helpers (sync, in-memory WASM)
+function sqlJsQuery<T>(sql: string, params: unknown[] = []): T[] {
+  const db = sqlJsDb!;
+  const results = db.exec(sql, params as any[]);
+  if (!results.length) return [];
+  const { columns, values } = results[0];
+  return values.map((row) => {
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
+function sqlJsQueryOne<T>(sql: string, params: unknown[] = []): T | null {
+  const rows = sqlJsQuery<T>(sql, params);
+  return rows[0] || null;
+}
+
+function sqlJsExec(sql: string, params: unknown[] = []): number {
+  const db = sqlJsDb!;
+  db.run(sql, params as any[]);
+  // sql.js doesn't return lastInsertRowid easily; use a query
+  const r = db.exec("SELECT last_insert_rowid() as id");
+  return r.length ? (r[0].values[0][0] as number) : 0;
+}
+
+// ─── Unified interface ──────────────────────────────────────
+
+async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  if (isTurso()) return tursoQuery<T>(sql, params);
+  await getSqlJs();
+  return sqlJsQuery<T>(sql, params);
+}
+
+async function queryOne<T>(sql: string, params: unknown[] = []): Promise<T | null> {
+  if (isTurso()) return tursoQueryOne<T>(sql, params);
+  await getSqlJs();
+  return sqlJsQueryOne<T>(sql, params);
+}
+
+async function execute(sql: string, params: unknown[] = []): Promise<number> {
+  if (isTurso()) return tursoExec(sql, params);
+  await getSqlJs();
+  return sqlJsExec(sql, params);
 }
 
 // ─── Types ───────────────────────────────────────────────────
@@ -141,7 +188,6 @@ export async function getItems(params: {
   const sql = `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name
     FROM item i JOIN category c ON i.category_id = c.id JOIN source s ON i.source_id = s.id
     ${where} ${sponsoredFirst} LIMIT ? OFFSET ?`;
-
   const countSql = `SELECT COUNT(*) as total FROM item i JOIN category c ON i.category_id = c.id ${where}`;
 
   const items = await query<ItemRow>(sql, [...binds, pageSize, offset]);
