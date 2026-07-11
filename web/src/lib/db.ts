@@ -1,15 +1,11 @@
 import { createClient, type Client } from "@libsql/client";
-import path from "path";
-import fs from "fs";
 import crypto from "crypto";
 
-// ─── JSON Data (static, no SQLite needed) ──────────────────
-
-const DATA_DIR = path.join(process.cwd(), "data");
-
-function loadJson<T>(filename: string): T {
-  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, filename), "utf-8")) as T;
-}
+// ─── JSON Data (bundled at build time) ─────────────────────
+import categoriesData from "@/data/categories.json";
+import itemsData from "@/data/items.json";
+import topItemsData from "@/data/top_items.json";
+import productsData from "@/data/products.json";
 
 function isTurso(): boolean {
   return !!(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
@@ -50,8 +46,8 @@ export interface RevenueLogRow { id: number; source: string; amount: number; des
 
 // ─── Items (from JSON) ──────────────────────────────────────
 
-let _items: ItemRow[] | null = null;
-function allItems(): ItemRow[] { if (!_items) _items = loadJson<ItemRow[]>("items.json"); return _items; }
+const _items: ItemRow[] = itemsData as ItemRow[];
+function allItems(): ItemRow[] { return _items; }
 
 export async function getItems(params: { category?: string; minPrice?: number; maxPrice?: number;
   minRating?: number; sort?: string; page?: number; pageSize?: number; query?: string; }): Promise<{ items: ItemRow[]; total: number }> {
@@ -95,8 +91,8 @@ export async function getSimilarItems(categoryId: number, excludeId: number, lim
 
 // ─── Categories (from JSON) ─────────────────────────────────
 
-let _cats: CategoryRow[] | null = null;
-function allCats(): CategoryRow[] { if (!_cats) _cats = loadJson<CategoryRow[]>("categories.json"); return _cats; }
+const _cats: CategoryRow[] = categoriesData as CategoryRow[];
+function allCats(): CategoryRow[] { return _cats; }
 
 export async function getCategories(): Promise<CategoryRow[]> {
   return allCats().filter(c => c.item_count > 0).sort((a, b) => b.item_count - a.item_count);
@@ -109,13 +105,13 @@ export async function getCategoryBySlug(slug: string): Promise<CategoryRow | nul
 // ─── Top Items (from JSON) ──────────────────────────────────
 
 export async function getTopItems(limit = 5): Promise<ItemRow[]> {
-  return loadJson<ItemRow[]>("top_items.json").slice(0, limit);
+  return (topItemsData as ItemRow[]).slice(0, limit);
 }
 
 // ─── Products (from JSON) ───────────────────────────────────
 
-let _products: ProductRow[] | null = null;
-function allProducts(): ProductRow[] { if (!_products) _products = loadJson<ProductRow[]>("products.json"); return _products; }
+const _products: ProductRow[] = productsData as ProductRow[];
+function allProducts(): ProductRow[] { return _products; }
 
 export async function getProducts(): Promise<ProductRow[]> {
   return allProducts().filter(p => p.is_active === 1);
