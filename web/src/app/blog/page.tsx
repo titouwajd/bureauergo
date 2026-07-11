@@ -97,6 +97,46 @@ export default function BlogPage() {
       category: "Accessoires",
       readTime: "9 min",
     },
+    {
+      title: "Quel repose-poignet choisir ? Gel, mousse ou mémoire de forme ?",
+      excerpt: "Gel, mousse classique ou mémoire de forme : découvrez quel type de repose-poignet est fait pour vous et comment bien le choisir.",
+      date: "2026-07-11",
+      slug: "quel-repose-poignet-choisir-gel-mousse-memoire-de-forme",
+      category: "Confort",
+      readTime: "6 min",
+    },
+    {
+      title: "Bras écran PC : pourquoi vous en avez absolument besoin",
+      excerpt: "Libérez de l'espace, ajustez votre posture et boostez votre productivité : le bras écran PC est l'accessoire qui change tout.",
+      date: "2026-07-13",
+      slug: "bras-ecran-pc-pourquoi-absolument-besoin",
+      category: "Supports écran",
+      readTime: "7 min",
+    },
+    {
+      title: "Chaise gaming vs chaise ergonomique : laquelle choisir pour le télétravail ?",
+      excerpt: "Design racing ou sobre bureau ? On compare confort, soutien lombaire et durabilité pour vous aider à faire le bon choix.",
+      date: "2026-07-15",
+      slug: "chaise-gaming-vs-chaise-ergonomique-teletravail",
+      category: "Sièges",
+      readTime: "8 min",
+    },
+    {
+      title: "Comment organiser les câbles de son bureau comme un pro",
+      excerpt: "Goulottes, serre-câbles, boîtiers cache-prises : toutes les astuces pour un bureau impeccable et sans nœuds.",
+      date: "2026-07-17",
+      slug: "organiser-cables-bureau-comme-un-pro",
+      category: "Rangement",
+      readTime: "6 min",
+    },
+    {
+      title: "Les bienfaits du bureau assis-debout prouvés par la science",
+      excerpt: "Réduction des douleurs lombaires, meilleure circulation, productivité accrue : ce que les études scientifiques disent vraiment.",
+      date: "2026-07-19",
+      slug: "bienfaits-bureau-assis-debout-science",
+      category: "Mobilier",
+      readTime: "9 min",
+    },
   ];
 
   return (
