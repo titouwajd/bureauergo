@@ -14,67 +14,48 @@ function getDb() {
   return createClient({ url: `file:${DB_PATH}` });
 }
 
+async function query<T>(db: ReturnType<typeof getDb>, sql: string, args: any[] = []): Promise<T[]> {
+  const result = await db.execute({ sql, args });
+  return result.rows.map((row) => {
+    const obj: any = {};
+    result.columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
+async function count(db: ReturnType<typeof getDb>, table: string, where = ""): Promise<number> {
+  const sql = where
+    ? `SELECT COUNT(*) as count FROM ${table} WHERE ${where}`
+    : `SELECT COUNT(*) as count FROM ${table}`;
+  const rows = await query<{ count: number }>(db, sql, []);
+  return Number(rows[0]?.count || 0);
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const database = getDb();
+    const db = getDb();
 
-    const totalItemsResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM item",
-      args: [],
-    });
-    const totalItems = Number(totalItemsResult.rows[0]?.[0] || 0);
+    const totalItems = await count(db, "item");
+    const activeItems = await count(db, "item", "is_active = 1");
+    const totalCategories = await count(db, "category");
+    const totalSubscribers = await count(db, "subscriber");
+    const totalClicks = await count(db, "affiliate_click");
 
-    const activeItemsResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM item WHERE is_active = 1",
-      args: [],
-    });
-    const activeItems = Number(activeItemsResult.rows[0]?.[0] || 0);
+    const recentSearches = await query<Record<string, unknown>>(
+      db,
+      "SELECT id, query, results_count, searched_at FROM search_log ORDER BY searched_at DESC LIMIT 20",
+      []
+    );
 
-    const totalCategoriesResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM category",
-      args: [],
-    });
-    const totalCategories = Number(totalCategoriesResult.rows[0]?.[0] || 0);
-
-    const totalSubscribersResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM subscriber",
-      args: [],
-    });
-    const totalSubscribers = Number(totalSubscribersResult.rows[0]?.[0] || 0);
-
-    const totalClicksResult = await database.execute({
-      sql: "SELECT COUNT(*) as count FROM affiliate_click",
-      args: [],
-    });
-    const totalClicks = Number(totalClicksResult.rows[0]?.[0] || 0);
-
-    const recentSearchesResult = await database.execute({
-      sql: "SELECT id, query, results_count, searched_at FROM search_log ORDER BY searched_at DESC LIMIT 20",
-      args: [],
-    });
-    const recentSearches = recentSearchesResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < recentSearchesResult.columns.length; i++) {
-        obj[recentSearchesResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
-
-    const recentScrapesResult = await database.execute({
-      sql: "SELECT * FROM scrape_log ORDER BY started_at DESC LIMIT 5",
-      args: [],
-    });
-    const recentScrapes = recentScrapesResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < recentScrapesResult.columns.length; i++) {
-        obj[recentScrapesResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
+    const recentScrapes = await query<Record<string, unknown>>(
+      db,
+      "SELECT * FROM scrape_log ORDER BY started_at DESC LIMIT 5",
+      []
+    );
 
     return NextResponse.json({
       total_items: totalItems,

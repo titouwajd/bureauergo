@@ -1,37 +1,12 @@
-import { createClient } from "@libsql/client";
 import { SITE_URL } from "@/lib/constants";
+import { getItems, getCategories } from "@/lib/db";
 import { MetadataRoute } from "next";
-import path from "path";
 
 export const dynamic = "force-dynamic";
 
-const DB_PATH = path.join(process.cwd(), "..", "data", "nichesite.db");
-
-function getClient() {
-  const tursoUrl = process.env.TURSO_DATABASE_URL;
-  const tursoToken = process.env.TURSO_AUTH_TOKEN;
-  if (tursoUrl && tursoToken) return createClient({ url: tursoUrl, authToken: tursoToken });
-  return createClient({ url: `file:${DB_PATH}` });
-}
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const db = getClient();
-
-  const itemsResult = await db.execute(
-    "SELECT slug, updated_at FROM item WHERE is_active = 1",
-  );
-  const items = itemsResult.rows.map((row) => ({
-    slug: String(row[0]),
-    updated_at: String(row[1]),
-  }));
-
-  const categoriesResult = await db.execute(
-    "SELECT slug, updated_at FROM category WHERE item_count > 0",
-  );
-  const categories = categoriesResult.rows.map((row) => ({
-    slug: String(row[0]),
-    updated_at: row[1] ? String(row[1]) : undefined,
-  }));
+  const categories = await getCategories();
+  const { items } = await getItems({ pageSize: 50000 });
 
   const staticPages = [
     { url: SITE_URL, priority: 1, changeFrequency: "daily" as const },
@@ -44,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const categoryPages = categories.map((cat) => ({
     url: `${SITE_URL}/categorie/${cat.slug}`,
-    lastModified: cat.updated_at ? new Date(cat.updated_at) : new Date(),
+    lastModified: new Date(),
     changeFrequency: "daily" as const,
     priority: 0.9,
   }));

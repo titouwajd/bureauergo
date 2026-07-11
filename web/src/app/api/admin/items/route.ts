@@ -14,6 +14,15 @@ function getDb() {
   return createClient({ url: `file:${DB_PATH}` });
 }
 
+async function query<T>(db: ReturnType<typeof getDb>, sql: string, args: any[] = []): Promise<T[]> {
+  const result = await db.execute({ sql, args });
+  return result.rows.map((row) => {
+    const obj: any = {};
+    result.columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,32 +37,25 @@ export async function GET(request: NextRequest) {
     );
     const offset = (page - 1) * pageSize;
 
-    const database = getDb();
+    const db = getDb();
 
-    const itemsResult = await database.execute({
-      sql: `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name
+    const items = await query<Record<string, unknown>>(
+      db,
+      `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name
          FROM item i
          LEFT JOIN category c ON i.category_id = c.id
          LEFT JOIN source s ON i.source_id = s.id
          ORDER BY i.created_at DESC
          LIMIT ? OFFSET ?`,
-      args: [pageSize, offset],
-    });
+      [pageSize, offset]
+    );
 
-    const totalResult = await database.execute({
-      sql: "SELECT COUNT(*) as total FROM item",
-      args: [],
-    });
-
-    const items = itemsResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < itemsResult.columns.length; i++) {
-        obj[itemsResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
-
-    const total = Number(totalResult.rows[0]?.[0] || 0);
+    const countRows = await query<{ total: number }>(
+      db,
+      "SELECT COUNT(*) as total FROM item",
+      []
+    );
+    const total = Number(countRows[0]?.total || 0);
 
     return NextResponse.json({
       items,
@@ -93,7 +95,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Item id is required" }, { status: 400 });
     }
 
-    const database = getDb();
+    const db = getDb();
 
     // Build dynamic UPDATE statement from allowed fields
     const allowedFields = [
@@ -128,32 +130,23 @@ export async function PUT(request: NextRequest) {
     values.push(id);
 
     const sql = `UPDATE item SET ${setClauses.join(", ")} WHERE id = ?`;
-    const result = await database.execute({ sql, args: values });
+    const result = await db.execute({ sql, args: values });
 
     if (Number(result.lastInsertRowid) === 0 && result.rowsAffected === 0) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const updatedResult = await database.execute({
-      sql: `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name
+    const updatedRows = await query<Record<string, unknown>>(
+      db,
+      `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name
          FROM item i
          LEFT JOIN category c ON i.category_id = c.id
          LEFT JOIN source s ON i.source_id = s.id
          WHERE i.id = ?`,
-      args: [id],
-    });
+      [id]
+    );
 
-    const updated = updatedResult.rows[0]
-      ? (() => {
-          const obj: Record<string, unknown> = {};
-          for (let i = 0; i < updatedResult.columns.length; i++) {
-            obj[updatedResult.columns[i]] = updatedResult.rows[0][i];
-          }
-          return obj;
-        })()
-      : null;
-
-    return NextResponse.json({ item: updated });
+    return NextResponse.json({ item: updatedRows[0] || null });
   } catch (error) {
     console.error("Admin items PUT error:", error);
     return NextResponse.json(
@@ -176,10 +169,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Item id is required" }, { status: 400 });
     }
 
-    const database = getDb();
+    const db = getDb();
 
     // Soft-delete: set is_active = 0
-    const result = await database.execute({
+    const result = await db.execute({
       sql: "UPDATE item SET is_active = 0, updated_at = datetime('now') WHERE id = ?",
       args: [id],
     });

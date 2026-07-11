@@ -14,26 +14,28 @@ function getDb() {
   return createClient({ url: `file:${DB_PATH}` });
 }
 
+async function query<T>(db: ReturnType<typeof getDb>, sql: string, args: any[] = []): Promise<T[]> {
+  const result = await db.execute({ sql, args });
+  return result.rows.map((row) => {
+    const obj: any = {};
+    result.columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const database = getDb();
+    const db = getDb();
 
-    const logsResult = await database.execute({
-      sql: "SELECT * FROM scrape_log ORDER BY started_at DESC LIMIT 50",
-      args: [],
-    });
-
-    const logs = logsResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < logsResult.columns.length; i++) {
-        obj[logsResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
+    const logs = await query<Record<string, unknown>>(
+      db,
+      "SELECT * FROM scrape_log ORDER BY started_at DESC LIMIT 50",
+      []
+    );
 
     return NextResponse.json({ logs });
   } catch (error) {

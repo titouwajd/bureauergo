@@ -14,17 +14,27 @@ function getDb() {
   return createClient({ url: `file:${DB_PATH}` });
 }
 
+async function query<T>(db: ReturnType<typeof getDb>, sql: string, args: any[] = []): Promise<T[]> {
+  const result = await db.execute({ sql, args });
+  return result.rows.map((row) => {
+    const obj: any = {};
+    result.columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const database = getDb();
+    const db = getDb();
 
     // Group affiliate clicks by item with count and last clicked time
-    const clicksResult = await database.execute({
-      sql: `SELECT
+    const clicks = await query<Record<string, unknown>>(
+      db,
+      `SELECT
            ac.item_id,
            i.title,
            i.slug,
@@ -35,16 +45,8 @@ export async function GET(request: NextRequest) {
          JOIN item i ON ac.item_id = i.id
          GROUP BY ac.item_id
          ORDER BY last_clicked_at DESC`,
-      args: [],
-    });
-
-    const clicks = clicksResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < clicksResult.columns.length; i++) {
-        obj[clicksResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
+      []
+    );
 
     return NextResponse.json({ clicks });
   } catch (error) {
@@ -75,9 +77,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const database = getDb();
+    const db = getDb();
 
-    const result = await database.execute({
+    const result = await db.execute({
       sql: "UPDATE item SET affiliate_url = ?, updated_at = datetime('now') WHERE id = ?",
       args: [affiliate_url, id],
     });
@@ -86,22 +88,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const updatedResult = await database.execute({
-      sql: "SELECT id, title, slug, affiliate_url FROM item WHERE id = ?",
-      args: [id],
-    });
+    const updatedRows = await query<Record<string, unknown>>(
+      db,
+      "SELECT id, title, slug, affiliate_url FROM item WHERE id = ?",
+      [id]
+    );
 
-    const updated = updatedResult.rows[0]
-      ? (() => {
-          const obj: Record<string, unknown> = {};
-          for (let i = 0; i < updatedResult.columns.length; i++) {
-            obj[updatedResult.columns[i]] = updatedResult.rows[0][i];
-          }
-          return obj;
-        })()
-      : null;
-
-    return NextResponse.json({ item: updated });
+    return NextResponse.json({ item: updatedRows[0] || null });
   } catch (error) {
     console.error("Admin affiliates PUT error:", error);
     return NextResponse.json(

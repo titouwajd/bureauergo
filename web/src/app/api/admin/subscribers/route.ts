@@ -14,6 +14,15 @@ function getDb() {
   return createClient({ url: `file:${DB_PATH}` });
 }
 
+async function query<T>(db: ReturnType<typeof getDb>, sql: string, args: any[] = []): Promise<T[]> {
+  const result = await db.execute({ sql, args });
+  return result.rows.map((row) => {
+    const obj: any = {};
+    result.columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj as T;
+  });
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,27 +37,20 @@ export async function GET(request: NextRequest) {
     );
     const offset = (page - 1) * pageSize;
 
-    const database = getDb();
+    const db = getDb();
 
-    const subscribersResult = await database.execute({
-      sql: "SELECT * FROM subscriber ORDER BY subscribed_at DESC LIMIT ? OFFSET ?",
-      args: [pageSize, offset],
-    });
+    const subscribers = await query<Record<string, unknown>>(
+      db,
+      "SELECT * FROM subscriber ORDER BY subscribed_at DESC LIMIT ? OFFSET ?",
+      [pageSize, offset]
+    );
 
-    const totalResult = await database.execute({
-      sql: "SELECT COUNT(*) as total FROM subscriber",
-      args: [],
-    });
-
-    const subscribers = subscribersResult.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < subscribersResult.columns.length; i++) {
-        obj[subscribersResult.columns[i]] = row[i];
-      }
-      return obj;
-    });
-
-    const total = Number(totalResult.rows[0]?.[0] || 0);
+    const countRows = await query<{ total: number }>(
+      db,
+      "SELECT COUNT(*) as total FROM subscriber",
+      []
+    );
+    const total = Number(countRows[0]?.total || 0);
 
     return NextResponse.json({
       subscribers,
