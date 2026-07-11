@@ -64,7 +64,7 @@ Passer huit heures par jour assis devant un écran n'est pas sans conséquence p
 </ul>
 
 <h2>Nos recommandations</h2>
-<p>Sur BureauErgo, nous avons sélectionné les meilleures chaises ergonomiques adaptées à chaque budget. Que vous cherchiez un modèle mesh respirant pour le télétravail ou un fauteuil en cuir pour votre bureau de direction, notre comparatif vous aide à faire le bon choix.</p>`,
+<p>Sur ErgoZone, nous avons sélectionné les meilleures chaises ergonomiques adaptées à chaque budget. Que vous cherchiez un modèle mesh respirant pour le télétravail ou un fauteuil en cuir pour votre bureau de direction, notre comparatif vous aide à faire le bon choix.</p>`,
   },
   {
     title: "Les 10 accessoires indispensables pour le télétravail",
@@ -274,7 +274,7 @@ Un bureau encombré génère du stress et réduit votre capacité de concentrati
 </ul>
 <p>Un espace numérique épuré est aussi important qu'un espace physique rangé pour votre concentration.</p>
 
-<h2>Les essentiels BureauErgo</h2>
+<h2>Les essentiels ErgoZone</h2>
 <p>Pour vous accompagner dans cette transformation, notre gamme de rangement propose des solutions adaptées : supports d'écran pour libérer de la surface, organiseurs de tiroirs, boîtiers de gestion de câbles et étagères murales. Faites de votre bureau un sanctuaire de productivité.</p>`,
   },
 ];

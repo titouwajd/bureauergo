@@ -17,7 +17,7 @@ export default function Breadcrumbs({ items }: Props) {
       "@type": "ListItem",
       position: i + 1,
       name: item.label,
-      item: item.href ? `https://bureauergo.fr${item.href}` : undefined,
+      item: item.href ? `https://ergozone.fr${item.href}` : undefined,
     })),
   };
 

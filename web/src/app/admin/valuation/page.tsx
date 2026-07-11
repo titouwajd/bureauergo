@@ -54,7 +54,7 @@ const REVENUE_SOURCES: { value: RevenueEntry["source"]; label: string; icon: str
   { value: "adsense", label: "Publicité", icon: "📢" },
 ];
 
-const TRAFFIC_STORAGE_KEY = "bureauergo_traffic_data";
+const TRAFFIC_STORAGE_KEY = "ergozone_traffic_data";
 
 function loadTrafficFromStorage(): TrafficData {
   if (typeof window === "undefined") return { monthlyVisitors: 0, domainAge: 0, backlinks: 0, articles: 0 };
@@ -195,8 +195,8 @@ export default function ValuationPage() {
     setExporting(true);
     const report: ValuationReport = {
       generatedAt: new Date().toISOString(),
-      siteName: "BureauErgo",
-      domain: "bureauergo.fr",
+      siteName: "ErgoZone",
+      domain: "ergozone.fr",
       revenue: {
         monthlyAffiliation: bySourceTotal("affiliation"),
         monthlyShop: bySourceTotal("shop"),
@@ -222,7 +222,7 @@ export default function ValuationPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `bureauergo-dossier-vente-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `ergozone-dossier-vente-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

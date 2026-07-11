@@ -1,6 +1,6 @@
 // Configuration et constantes
-export const SITE_NAME = "BureauErgo";
-export const SITE_DOMAIN = "bureauergo.fr";
+export const SITE_NAME = "ErgoZone";
+export const SITE_DOMAIN = "ergozone.fr";
 export const SITE_URL = `https://${SITE_DOMAIN}`;
 export const SITE_DESCRIPTION = "Le guide des accessoires de bureau ergonomiques. Comparatifs, avis et meilleurs prix pour votre confort au travail.";
 export const SITE_TAGLINE = "Votre bureau, votre bien-être";
@@ -16,14 +16,14 @@ export const SORT_OPTIONS = [
   { value: "recent", label: "Plus récents" },
 ] as const;
 
-export const AFFILIATE_TAG = process.env.AFFILIATE_TAG || "bureauergo-21";
+export const AFFILIATE_TAG = process.env.AFFILIATE_TAG || "ergozone-21";
 export const ADSENSE_ENABLED = process.env.ADSENSE_ENABLED === "true";
 export const ADSENSE_CLIENT_ID = process.env.ADSENSE_CLIENT_ID || "";
 export const ADSENSE_SLOT_HEADER = process.env.ADSENSE_SLOT_HEADER || "";
 export const ADSENSE_SLOT_SIDEBAR = process.env.ADSENSE_SLOT_SIDEBAR || "";
 export const ADSENSE_SLOT_INFEED = process.env.ADSENSE_SLOT_INFEED || "";
 
-export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@bureauergo.fr";
+export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@ergozone.fr";
 export const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || "";
 
 // Navigation

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET = process.env.JWT_SECRET || 'bureauergo-jwt-secret-dev-only';
+const SECRET = process.env.JWT_SECRET || 'ergozone-jwt-secret-dev-only';
 
 export function signToken(payload: object): string {
   return jwt.sign(payload, SECRET, { expiresIn: '7d' });
