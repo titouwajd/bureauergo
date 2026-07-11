@@ -7,7 +7,12 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import FilterSidebar from "@/components/FilterSidebar";
 import Pagination from "@/components/Pagination";
 
-export const dynamic = "force-dynamic";
+export async function generateStaticParams() {
+  const categories = await getCategories();
+  return categories.map((c: any) => ({ slug: c.slug }));
+}
+
+export const revalidate = 3600;
 
 interface Props {
   params: Promise<{ slug: string }>;

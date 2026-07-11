@@ -6,8 +6,25 @@ import StarRating from "@/components/StarRating";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import ItemCard from "@/components/ItemCard";
 import CopyLinkButton from "@/components/CopyLinkButton";
+import Database from "better-sqlite3";
+import path from "path";
+import fs from "fs";
 
-export const dynamic = "force-dynamic";
+const DB_PATHS = [
+  path.join(process.cwd(), "data", "nichesite.db"),
+  path.join(process.cwd(), "..", "data", "nichesite.db"),
+];
+
+export async function generateStaticParams() {
+  let dbPath = "";
+  for (const p of DB_PATHS) { if (fs.existsSync(p)) { dbPath = p; break; } }
+  if (!dbPath) return [];
+  const db = new Database(dbPath);
+  const slugs = db.prepare("SELECT slug FROM item WHERE is_active = 1").all() as { slug: string }[];
+  return slugs.map((s) => ({ slug: s.slug }));
+}
+
+export const revalidate = 3600;
 
 interface Props {
   params: Promise<{ slug: string }>;

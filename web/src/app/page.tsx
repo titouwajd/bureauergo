@@ -4,13 +4,13 @@ import { SITE_NAME, SITE_TAGLINE, NAV_LINKS } from "@/lib/constants";
 import ItemCard from "@/components/ItemCard";
 import StarRating from "@/components/StarRating";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 export default async function HomePage() {
-  let topItems: Awaited<ReturnType<typeof getTopItems>> = [];
-  let categories: Array<{ id: number; name: string; slug: string; description: string | null; item_count: number }> = [];
-  try { topItems = await getTopItems(10); } catch (e) { console.error("DB unavailable for getTopItems:", e); }
-  try { categories = await getCategories() as any; } catch (e) { console.error("DB unavailable for getCategories:", e); }
+  const [topItems, categories] = await Promise.all([
+    getTopItems(10),
+    getCategories() as Promise<Array<{ id: number; name: string; slug: string; description: string | null; item_count: number }>>,
+  ]);
 
   const categoryIcons: Record<string, string> = {
     "accessoires-bureau": "🖥️",
