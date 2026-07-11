@@ -1,34 +1,18 @@
-import Database from "better-sqlite3";
 import { createClient, type Client } from "@libsql/client";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
-// ─── Config ─────────────────────────────────────────────────
+// ─── JSON Data (static, no SQLite needed) ──────────────────
 
-const DB_PATHS = [
-  path.join(process.cwd(), "data", "nichesite.db"),
-  path.join(process.cwd(), "..", "data", "nichesite.db"),
-];
+const DATA_DIR = path.join(process.cwd(), "data");
+
+function loadJson<T>(filename: string): T {
+  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, filename), "utf-8")) as T;
+}
 
 function isTurso(): boolean {
   return !!(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
-}
-
-// ─── local SQLite (better-sqlite3) ──────────────────────────
-
-let localDb: Database.Database | null = null;
-
-function getLocalDb(): Database.Database {
-  if (!localDb) {
-    let dbPath = "";
-    for (const p of DB_PATHS) { if (fs.existsSync(p)) { dbPath = p; break; } }
-    if (!dbPath) throw new Error("Database file not found");
-    localDb = new Database(dbPath);
-    localDb.pragma("journal_mode = WAL");
-    localDb.pragma("foreign_keys = ON");
-  }
-  return localDb;
 }
 
 // ─── Turso client ───────────────────────────────────────────
@@ -43,36 +27,6 @@ function getTurso(): Client {
     });
   }
   return turso;
-}
-
-// ─── Unified helpers ────────────────────────────────────────
-
-async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-  if (isTurso()) {
-    const r = await getTurso().execute({ sql, args: params as any[] });
-    return r.rows.map((row) => {
-      const obj: any = {};
-      r.columns.forEach((c, i) => (obj[c] = row[i]));
-      return obj as T;
-    });
-  }
-  return getLocalDb().prepare(sql).all(...params) as T[];
-}
-
-async function queryOne<T>(sql: string, params: unknown[] = []): Promise<T | null> {
-  if (isTurso()) {
-    const rows = await query<T>(sql, params);
-    return rows[0] || null;
-  }
-  return (getLocalDb().prepare(sql).get(...params) as T) || null;
-}
-
-async function execute(sql: string, params: unknown[] = []): Promise<number> {
-  if (isTurso()) {
-    const r = await getTurso().execute({ sql, args: params as any[] });
-    return Number(r.lastInsertRowid || 0);
-  }
-  return Number(getLocalDb().prepare(sql).run(...params).lastInsertRowid);
 }
 
 // ─── Types ───────────────────────────────────────────────────
@@ -94,135 +48,103 @@ export interface OrderItemRow { id: number; order_id: number; product_id: number
 export interface DownloadTokenRow { id: number; token: string; order_item_id: number; customer_id: number; product_id: number; expires_at: string; used_at: string | null; created_at: string; }
 export interface RevenueLogRow { id: number; source: string; amount: number; description: string | null; recorded_at: string; }
 
-// ─── Items ──────────────────────────────────────────────────
+// ─── Items (from JSON) ──────────────────────────────────────
+
+let _items: ItemRow[] | null = null;
+function allItems(): ItemRow[] { if (!_items) _items = loadJson<ItemRow[]>("items.json"); return _items; }
 
 export async function getItems(params: { category?: string; minPrice?: number; maxPrice?: number;
   minRating?: number; sort?: string; page?: number; pageSize?: number; query?: string; }): Promise<{ items: ItemRow[]; total: number }> {
-  const page = params.page || 1; const pageSize = Math.min(params.pageSize || 20, 50);
-  const offset = (page - 1) * pageSize; let where = "WHERE i.is_active = 1"; const binds: unknown[] = [];
-  if (params.category) { where += " AND c.slug = ?"; binds.push(params.category); }
-  if (params.minPrice !== undefined) { where += " AND i.price >= ?"; binds.push(params.minPrice); }
-  if (params.maxPrice !== undefined) { where += " AND i.price <= ?"; binds.push(params.maxPrice); }
-  if (params.minRating !== undefined) { where += " AND i.rating >= ?"; binds.push(params.minRating); }
-  if (params.query) { where += " AND (i.title LIKE ? OR i.description LIKE ? OR i.brand LIKE ?)"; const q = `%${params.query}%`; binds.push(q, q, q); }
-  let orderBy = "ORDER BY i.rating DESC, i.review_count DESC";
-  switch (params.sort) { case "price_asc": orderBy = "ORDER BY i.price ASC"; break; case "price_desc": orderBy = "ORDER BY i.price DESC"; break; case "recent": orderBy = "ORDER BY i.created_at DESC"; break; case "popular": orderBy = "ORDER BY i.review_count DESC"; break; }
-  const sf = "ORDER BY i.is_sponsored DESC, " + orderBy.slice(9);
-  const sql = `SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name FROM item i JOIN category c ON i.category_id = c.id JOIN source s ON i.source_id = s.id ${where} ${sf} LIMIT ? OFFSET ?`;
-  const countSql = `SELECT COUNT(*) as total FROM item i JOIN category c ON i.category_id = c.id ${where}`;
-  const items = await query<ItemRow>(sql, [...binds, pageSize, offset]);
-  const countRow = await queryOne<{ total: number }>(countSql, binds);
-  return { items, total: countRow?.total || 0 };
+  let items = allItems().filter(i => i.is_active === 1);
+  if (params.category) items = items.filter(i => i.category_slug === params.category);
+  if (params.minPrice !== undefined) items = items.filter(i => i.price !== null && i.price >= params.minPrice!);
+  if (params.maxPrice !== undefined) items = items.filter(i => i.price !== null && i.price <= params.maxPrice!);
+  if (params.minRating !== undefined) items = items.filter(i => i.rating !== null && i.rating >= params.minRating!);
+  if (params.query) {
+    const q = params.query.toLowerCase();
+    items = items.filter(i => (i.title || "").toLowerCase().includes(q) || (i.description || "").toLowerCase().includes(q) || (i.brand || "").toLowerCase().includes(q));
+  }
+  // Sort
+  items.sort((a, b) => {
+    if (a.is_sponsored && !b.is_sponsored) return -1;
+    if (!a.is_sponsored && b.is_sponsored) return 1;
+    switch (params.sort) {
+      case "price_asc": return (a.price || 0) - (b.price || 0);
+      case "price_desc": return (b.price || 0) - (a.price || 0);
+      case "recent": return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case "popular": return (b.review_count || 0) - (a.review_count || 0);
+      default: return (b.rating || 0) - (a.rating || 0);
+    }
+  });
+  const total = items.length;
+  const page = params.page || 1;
+  const pageSize = Math.min(params.pageSize || 20, 50);
+  return { items: items.slice((page - 1) * pageSize, page * pageSize), total };
 }
 
 export async function getItemBySlug(slug: string): Promise<ItemRow | null> {
-  return queryOne<ItemRow>(`SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name FROM item i JOIN category c ON i.category_id = c.id JOIN source s ON i.source_id = s.id WHERE i.slug = ? AND i.is_active = 1`, [slug]);
+  return allItems().find(i => i.slug === slug && i.is_active === 1) || null;
 }
 
 export async function getSimilarItems(categoryId: number, excludeId: number, limit = 6): Promise<ItemRow[]> {
-  return query<ItemRow>(`SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name FROM item i JOIN category c ON i.category_id = c.id JOIN source s ON i.source_id = s.id WHERE i.category_id = ? AND i.id != ? AND i.is_active = 1 ORDER BY i.rating DESC LIMIT ?`, [categoryId, excludeId, limit]);
+  return allItems()
+    .filter(i => i.category_id === categoryId && i.id !== excludeId && i.is_active === 1)
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, limit);
 }
 
+// ─── Categories (from JSON) ─────────────────────────────────
+
+let _cats: CategoryRow[] | null = null;
+function allCats(): CategoryRow[] { if (!_cats) _cats = loadJson<CategoryRow[]>("categories.json"); return _cats; }
+
 export async function getCategories(): Promise<CategoryRow[]> {
-  return query<CategoryRow>("SELECT * FROM category WHERE item_count > 0 ORDER BY item_count DESC");
+  return allCats().filter(c => c.item_count > 0).sort((a, b) => b.item_count - a.item_count);
 }
 
 export async function getCategoryBySlug(slug: string): Promise<CategoryRow | null> {
-  return queryOne<CategoryRow>("SELECT * FROM category WHERE slug = ?", [slug]);
+  return allCats().find(c => c.slug === slug) || null;
 }
 
-export async function logSearch(q: string, resultsCount: number, ip?: string): Promise<void> {
-  await execute("INSERT INTO search_log (query, results_count, ip_address) VALUES (?, ?, ?)", [q, resultsCount, ip || null]);
-}
-
-export async function getAffiliateUrl(itemId: number): Promise<string | null> {
-  const row = await queryOne<{ affiliate_url: string }>("SELECT affiliate_url FROM item WHERE id = ? AND is_active = 1", [itemId]);
-  return row?.affiliate_url || null;
-}
-
-export async function logAffiliateClick(itemId: number, ip?: string, ua?: string): Promise<void> {
-  await execute("INSERT INTO affiliate_click (item_id, ip_address, user_agent) VALUES (?, ?, ?)", [itemId, ip || null, ua || null]);
-}
-
-export async function subscribeEmail(email: string): Promise<boolean> {
-  try { await execute("INSERT OR IGNORE INTO subscriber (email) VALUES (?)", [email.toLowerCase().trim()]); return true; } catch { return false; }
-}
+// ─── Top Items (from JSON) ──────────────────────────────────
 
 export async function getTopItems(limit = 5): Promise<ItemRow[]> {
-  return query<ItemRow>(`SELECT i.*, c.name as category_name, c.slug as category_slug, s.name as source_name FROM item i JOIN category c ON i.category_id = c.id JOIN source s ON i.source_id = s.id WHERE i.is_active = 1 ORDER BY i.rating DESC, i.review_count DESC LIMIT ?`, [limit]);
+  return loadJson<ItemRow[]>("top_items.json").slice(0, limit);
 }
 
+// ─── Products (from JSON) ───────────────────────────────────
+
+let _products: ProductRow[] | null = null;
+function allProducts(): ProductRow[] { if (!_products) _products = loadJson<ProductRow[]>("products.json"); return _products; }
+
 export async function getProducts(): Promise<ProductRow[]> {
-  return query<ProductRow>("SELECT * FROM product WHERE is_active = 1 ORDER BY created_at DESC");
+  return allProducts().filter(p => p.is_active === 1);
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductRow | null> {
-  return queryOne<ProductRow>("SELECT * FROM product WHERE slug = ? AND is_active = 1", [slug]);
+  return allProducts().find(p => p.slug === slug && p.is_active === 1) || null;
 }
 
-export async function createCustomer(email: string, passwordHash: string, name?: string): Promise<number> {
-  return execute("INSERT INTO customer (email, password_hash, name) VALUES (?, ?, ?)", [email.toLowerCase().trim(), passwordHash, name || null]);
-}
+// ─── Runtime-only functions (need real DB for writes) ──────
 
-export async function getCustomerByEmail(email: string): Promise<CustomerRow | null> {
-  return queryOne<CustomerRow>("SELECT * FROM customer WHERE email = ?", [email.toLowerCase().trim()]);
+export async function logSearch(_q: string, _c: number, _ip?: string): Promise<void> {}
+export async function getAffiliateUrl(itemId: number): Promise<string | null> {
+  return allItems().find(i => i.id === itemId)?.affiliate_url || null;
 }
-
-export async function verifyCustomerPassword(email: string, password: string): Promise<CustomerRow | null> {
-  return queryOne<CustomerRow>("SELECT * FROM customer WHERE email = ? AND password_hash = ?", [email.toLowerCase().trim(), password]);
-}
-
-export async function createOrder(customerId: number, total: number, stripeSessionId: string, items: { productId: number; quantity: number; unitPrice: number }[]): Promise<number> {
-  const orderId = await execute("INSERT INTO customer_order (customer_id, total, stripe_session_id, status) VALUES (?, ?, ?, 'pending')", [customerId, total, stripeSessionId]);
-  for (const item of items) await execute("INSERT INTO order_item (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)", [orderId, item.productId, item.quantity, item.unitPrice]);
-  return orderId;
-}
-
-export async function getOrdersByCustomer(customerId: number): Promise<OrderRow[]> {
-  return query<OrderRow>("SELECT * FROM customer_order WHERE customer_id = ? ORDER BY created_at DESC", [customerId]);
-}
-
-export async function getOrderByStripeSession(sessionId: string): Promise<OrderRow | null> {
-  return queryOne<OrderRow>("SELECT * FROM customer_order WHERE stripe_session_id = ?", [sessionId]);
-}
-
-export async function updateOrderStatus(orderId: number, status: string): Promise<void> {
-  await execute("UPDATE customer_order SET status = ? WHERE id = ?", [status, orderId]);
-}
-
-export async function createDownloadToken(orderItemId: number, customerId: number, productId: number): Promise<string> {
-  const token = crypto.randomBytes(32).toString("hex");
-  await execute("INSERT INTO download_token (token, order_item_id, customer_id, product_id, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+24 hours'))", [token, orderItemId, customerId, productId]);
-  return token;
-}
-
-export async function validateDownloadToken(token: string): Promise<DownloadTokenRow | null> {
-  return queryOne<DownloadTokenRow>("SELECT * FROM download_token WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')", [token]);
-}
-
-export async function markTokenUsed(token: string): Promise<void> {
-  await execute("UPDATE download_token SET used_at = datetime('now') WHERE token = ?", [token]);
-}
-
-export async function logRevenue(source: string, amount: number, description?: string): Promise<void> {
-  await execute("INSERT INTO revenue_log (source, amount, description) VALUES (?, ?, ?)", [source, amount, description || null]);
-}
-
-export async function getRevenueSummary(): Promise<{ source: string; total: number }[]> {
-  return query<{ source: string; total: number }>("SELECT source, SUM(amount) as total FROM revenue_log GROUP BY source ORDER BY total DESC");
-}
-
-export async function getMonthlyRevenue(): Promise<number> {
-  const row = await queryOne<{ total: number }>("SELECT COALESCE(SUM(amount), 0) as total FROM revenue_log WHERE recorded_at >= datetime('now', '-30 days')");
-  return row?.total || 0;
-}
-
-export async function getTotalCustomers(): Promise<number> {
-  const row = await queryOne<{ total: number }>("SELECT COUNT(*) as total FROM customer");
-  return row?.total || 0;
-}
-
-export async function getTotalOrders(): Promise<number> {
-  const row = await queryOne<{ total: number }>("SELECT COUNT(*) as total FROM customer_order WHERE status = 'completed'");
-  return row?.total || 0;
-}
+export async function logAffiliateClick(_id: number, _ip?: string, _ua?: string): Promise<void> {}
+export async function subscribeEmail(_email: string): Promise<boolean> { return false; }
+export async function createCustomer(_e: string, _h: string, _n?: string): Promise<number> { return 0; }
+export async function getCustomerByEmail(_email: string): Promise<CustomerRow | null> { return null; }
+export async function verifyCustomerPassword(_e: string, _p: string): Promise<CustomerRow | null> { return null; }
+export async function createOrder(_cid: number, _t: number, _sid: string, _items: any[]): Promise<number> { return 0; }
+export async function getOrdersByCustomer(_cid: number): Promise<OrderRow[]> { return []; }
+export async function getOrderByStripeSession(_sid: string): Promise<OrderRow | null> { return null; }
+export async function updateOrderStatus(_oid: number, _s: string): Promise<void> {}
+export async function createDownloadToken(_oi: number, _ci: number, _pi: number): Promise<string> { return ""; }
+export async function validateDownloadToken(_t: string): Promise<DownloadTokenRow | null> { return null; }
+export async function markTokenUsed(_t: string): Promise<void> {}
+export async function logRevenue(_s: string, _a: number, _d?: string): Promise<void> {}
+export async function getRevenueSummary(): Promise<{ source: string; total: number }[]> { return []; }
+export async function getMonthlyRevenue(): Promise<number> { return 0; }
+export async function getTotalCustomers(): Promise<number> { return 0; }
+export async function getTotalOrders(): Promise<number> { return 0; }
