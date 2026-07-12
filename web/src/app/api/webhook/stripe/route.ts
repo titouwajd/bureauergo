@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         customerId || 0,
         total,
         stripeSessionId,
-        [{ productId, quantity: 1, unitPrice: total }]
+        [{ product_id: productId, quantity: 1, unit_price: total }]
       );
 
       // Create download token for the one order item (orderItemId = 1 since we just created the order)
